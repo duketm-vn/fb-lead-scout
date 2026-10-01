@@ -1,6 +1,6 @@
 # FB Lead Scout
 
-Chrome extension đọc **thụ động** bài trong các Facebook Group bạn đang mở, gửi lên CRM (taminhduc.com) để Claude
+Chrome extension đọc **thụ động** bài từ các Facebook Group bạn theo dõi, cả trong trang group lẫn trên News Feed, gửi lên CRM (taminhduc.com) để Claude
 chấm xem có phải người cần làm app/web không. Cơ hội tốt được báo qua bot Telegram riêng, duyệt ở
 **CRM → Cơ hội FB** và chuyển thành lead.
 
@@ -27,7 +27,9 @@ tải lại các tab Facebook đang mở.
 ## Dùng hằng ngày
 
 1. Ở **CRM → Cơ hội FB → Group theo dõi**, thêm group bằng cách dán link group (chỉ cần làm 1 lần mỗi group).
-2. Mở group đó trên Chrome và lướt như bình thường. Popup hiện **● Đang đọc: <tên group>** và số bài đọc được.
+2. Lướt **News Feed** hoặc mở trang group như bình thường. Trên News Feed, extension chỉ đọc bài từ group đang theo
+   dõi (bài bạn bè, trang, quảng cáo, group khác bị bỏ qua). Popup hiện số bài đọc được.
+   Group thêm bằng link tên rút gọn: mở trang group đó 1 lần để extension ghi nhận id số (News Feed hay dùng id số).
    Bài đăng **cũ hơn 3 ngày** bị bỏ qua (gần như hết cơ hội, đỡ phí chấm điểm).
 3. Cơ hội từ ngưỡng điểm trở lên (mặc định 70) được bot Telegram báo ngay. Tất cả cơ hội nằm ở **CRM → Cơ hội FB**.
 
@@ -35,7 +37,8 @@ Popup báo group **chưa có trong danh sách theo dõi** nghĩa là extension k
 
 ## Giới hạn đã biết
 
-- Chỉ đọc bài trong trang group (`facebook.com/groups/...`), không đọc News Feed, trang "Nhóm" tổng hợp hay bình luận.
+- Đọc ở News Feed, trang "Nhóm" tổng hợp và trang group; không đọc bình luận, trang cá nhân, Marketplace.
+- Group thêm bằng tên rút gọn mà chưa từng mở trang group: bài của group đó trên News Feed có thể chưa được nhận.
 - Bài dài bị cắt bởi "Xem thêm" chỉ gửi phần đang hiện (extension không tự bấm). Bấm "Xem thêm" sau đó cũng
   không gửi lại vì bài đã được chấm.
 - Bài chỉ có ảnh/video (không có chữ) bị bỏ qua.

@@ -73,37 +73,13 @@ function Login({ onDone }: { onDone: () => void }) {
   );
 }
 
-function PageCard({ status }: { status: PageStatus | null }) {
-  if (!status) {
-    return (
-      <p className="rounded-lg bg-white p-3 text-sm text-slate-500 ring-1 ring-slate-200">
-        Mở một Facebook Group đang theo dõi để extension bắt đầu đọc. Tab mở trước khi cài extension thì tải lại
-        trang.
-      </p>
-    );
-  }
-  if (!status.groupKey) {
-    return (
-      <p className="rounded-lg bg-white p-3 text-sm text-slate-500 ring-1 ring-slate-200">
-        Trang này không phải 1 group. Extension chỉ đọc bài trong group (không đọc News Feed).
-      </p>
-    );
-  }
-  if (!status.watchedName) {
-    return (
-      <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
-        Group <b>{status.groupKey}</b> chưa có trong danh sách theo dõi, extension không đọc gì ở đây. Thêm ở CRM
-        → Cơ hội FB → Group theo dõi (dán link group), rồi tải lại trang.
-      </div>
-    );
-  }
+function Counts({ status }: { status: PageStatus }) {
   return (
-    <div className="rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
-      <p className="font-medium text-emerald-700">● Đang đọc: {status.watchedName}</p>
+    <>
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-slate-600">
         <dt>Bài đọc được</dt>
         <dd className="text-right font-medium text-slate-900">{status.found}</dd>
-        <dt>Cũ hơn {MAX_POST_AGE_DAYS} ngày (bỏ qua)</dt>
+        <dt>Cũ hơn {MAX_POST_AGE_DAYS} ngày</dt>
         <dd className="text-right">{status.tooOld}</dd>
         <dt>Không rõ giờ đăng</dt>
         <dd className="text-right">{status.noTime}</dd>
@@ -117,6 +93,49 @@ function PageCard({ status }: { status: PageStatus | null }) {
           Facebook ẩn link bài tới khi rê chuột vào giờ đăng; bài sẽ được đọc khi link hiện ra.
         </p>
       )}
+    </>
+  );
+}
+
+function PageCard({ status }: { status: PageStatus | null }) {
+  if (!status) {
+    return (
+      <p className="rounded-lg bg-white p-3 text-sm text-slate-500 ring-1 ring-slate-200">
+        Mở News Feed hoặc một Facebook Group đang theo dõi để extension bắt đầu đọc. Tab mở trước khi cài/cập nhật
+        extension thì tải lại trang.
+      </p>
+    );
+  }
+  if (!status.mode) {
+    return (
+      <p className="rounded-lg bg-white p-3 text-sm text-slate-500 ring-1 ring-slate-200">
+        Extension chỉ đọc ở News Feed và trang group, trang này bị bỏ qua.
+      </p>
+    );
+  }
+  if (status.mode === 'feed') {
+    return (
+      <div className="rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
+        <p className="font-medium text-emerald-700">● News Feed: chỉ đọc bài từ {status.watchedCount} group theo dõi</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Đã gặp bài từ {status.feedGroups} group. Bài bạn bè, trang, quảng cáo, group khác bị bỏ qua.
+        </p>
+        <Counts status={status} />
+      </div>
+    );
+  }
+  if (!status.watchedName) {
+    return (
+      <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
+        Group <b>{status.groupKey}</b> chưa có trong danh sách theo dõi, extension không đọc gì ở đây. Thêm ở CRM
+        → Cơ hội FB → Group theo dõi (dán link group), rồi tải lại trang.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
+      <p className="font-medium text-emerald-700">● Đang đọc: {status.watchedName}</p>
+      <Counts status={status} />
     </div>
   );
 }

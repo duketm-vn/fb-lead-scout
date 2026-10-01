@@ -29,9 +29,11 @@ export interface BackgroundStatus {
 }
 
 export interface PageStatus {
+  mode: 'group' | 'feed' | null; // trang 1 group / News Feed (lọc từng bài) / trang khác
   groupKey: string | null;
-  group: GroupRef | null;
-  watchedName: string | null;
+  watchedName: string | null; // group đang mở (mode group)
+  watchedCount: number; // số group đang theo dõi
+  feedGroups: number; // mode feed: số group theo dõi đã gặp bài trên trang
   loggedIn: boolean;
   found: number;
   queued: number;
@@ -46,7 +48,8 @@ export type BgMessage =
   | { type: 'auth:login'; email: string; password: string }
   | { type: 'auth:logout' }
   | { type: 'status' }
-  | { type: 'group:check'; keys: string[] }
+  | { type: 'groups:list' }
+  | { type: 'group:learn'; id: string; fb_group_id: string }
   | { type: 'posts:add'; group: GroupRef; posts: ExtractedPost[] }
   | { type: 'flush' };
 

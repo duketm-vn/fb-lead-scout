@@ -1,27 +1,43 @@
-// E2E extension fb-lead-scout: Chromium thật + extension thật, trang facebook.com được thay bằng HTML giả lập
-// (page.route), nên không chạm Facebook thật. Đăng nhập popup → mở group → chờ extension tự đọc + gửi lô.
+// E2E extension fb-lead-scout: Chromium thật + extension thật, facebook.com được thay bằng HTML mô phỏng
+// (page.route), nên không chạm Facebook thật. Đăng nhập popup → trang group → News Feed → group mở bằng tên rút gọn.
 const { chromium } = require('playwright');
 const fs = require('fs');
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 (async () => {
   const ext = '/work/ext';
-  const fixture = fs.readFileSync('/work/group-feed.html', 'utf8');
+  const groupFeed = fs.readFileSync('/work/group-feed.html', 'utf8');
+  const newsFeed = fs.readFileSync('/work/news-feed.html', 'utf8');
+  const page = (body) => ({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html lang="vi"><body>${body}</body></html>` });
   const ctx = await chromium.launchPersistentContext('/tmp/profile', {
     channel: 'chromium',
     headless: true,
     viewport: { width: 1200, height: 800 },
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
   });
-  await ctx.route('https://www.facebook.com/**', (route) =>
-    route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html lang="vi"><body>${fixture}</body></html>` }),
-  );
+  await ctx.route('https://www.facebook.com/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/') return route.fulfill(page(newsFeed));
+    // Group mở bằng tên rút gọn: link thành viên trong trang dùng id số 777777777 (để extension học id số).
+    if (path.startsWith('/groups/caphe.khoinghiep')) return route.fulfill(page(groupFeed.replaceAll('123456789', '777777777')));
+    return route.fulfill(page(groupFeed));
+  });
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent('serviceworker');
   const extId = sw.url().split('/')[2];
-  console.log('extension id', extId);
+  const scout = () => sw.evaluate(() => chrome.storage.local.get('scout').then((r) => r.scout));
+  const until = async (fn, ms = 60000) => {
+    for (let t = 0; t < ms; t += 1000) {
+      await wait(1000);
+      const s = await scout();
+      if (s && fn(s)) return s;
+    }
+    return scout();
+  };
 
   const popup = await ctx.newPage();
-  await popup.setViewportSize({ width: 340, height: 560 });
+  await popup.setViewportSize({ width: 340, height: 600 });
   await popup.goto(`chrome-extension://${extId}/popup.html`);
   await popup.screenshot({ path: '/work/1-popup-login.png' });
   await popup.fill('input[type=email]', process.env.EMAIL);
@@ -30,47 +46,46 @@ const fs = require('fs');
   await popup.waitForSelector('text=Đăng xuất', { timeout: 15000 });
   console.log('đăng nhập ok');
 
+  const statusOf = () =>
+    popup.evaluate(async () => {
+      for (const t of await chrome.tabs.query({})) {
+        try {
+          const r = await chrome.tabs.sendMessage(t.id, { type: 'page:status' });
+          if (r) return r;
+        } catch {}
+      }
+      return null;
+    });
+
+  // 1. Trang group (id số)
   const fb = await ctx.newPage();
   await fb.goto('https://www.facebook.com/groups/123456789/');
+  let s = await until((x) => x.stats.sent >= 4 && x.queue.length === 0);
+  const g = await statusOf();
+  console.log('[group] sent', s.stats.sent, 'found', g.found, 'tooOld', g.tooOld, 'noTime', g.noTime, 'noId', g.noId, 'lastError', s.lastError);
 
-  const scout = () => sw.evaluate(() => chrome.storage.local.get('scout').then((r) => r.scout));
-  let s;
-  for (let i = 0; i < 60; i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    s = await scout();
-    if (s && s.stats.sent >= 4 && s.queue.length === 0) break;
-  }
-  console.log('stats', JSON.stringify(s && s.stats), 'queue', s && s.queue.length, 'lastError', s && s.lastError);
-
-  // Trạng thái content script trên tab facebook (popup thật lấy tab đang mở; ở đây hỏi thẳng tab).
-  const pageStatus = await popup.evaluate(async () => {
-    const tabs = await chrome.tabs.query({});
-    for (const t of tabs) {
-      try {
-        const r = await chrome.tabs.sendMessage(t.id, { type: 'page:status' });
-        if (r) return r;
-      } catch {}
-    }
-    return null;
-  });
-  console.log('page', JSON.stringify(pageStatus));
-  const diag = await popup.evaluate(async () => {
-    for (const t of await chrome.tabs.query({})) {
-      try { const r = await chrome.tabs.sendMessage(t.id, { type: 'page:diagnose' }); if (r) return r; } catch {}
-    }
-    return null;
-  });
-  console.log('diag dòng đầu:', diag && diag.split('\n').slice(0, 3).join(' | '));
-
+  // 2. News Feed: chỉ 2 bài của group theo dõi (id số + tên rút gọn), bỏ bạn bè/quảng cáo/group khác/bài cũ
+  await fb.goto('https://www.facebook.com/');
+  s = await until((x) => x.stats.sent >= 6 && x.queue.length === 0, 30000);
+  const f = await statusOf();
+  console.log('[feed] sent', s.stats.sent, 'mode', f.mode, 'found', f.found, 'feedGroups', f.feedGroups, 'tooOld', f.tooOld, 'lastError', s.lastError);
   await popup.reload();
   await popup.waitForSelector('text=Hôm nay');
-  await popup.screenshot({ path: '/work/2-popup-stats.png' });
-  // Mô phỏng popup khi đang ở 1 group chưa theo dõi
-  const fb2 = await ctx.newPage();
-  await fb2.goto('https://www.facebook.com/groups/khong.theo.doi/');
-  await new Promise((r) => setTimeout(r, 2500));
-  const s2 = await scout();
-  console.log('sau khi mở group không theo dõi, queued vẫn =', s2.stats.queued);
+  await fb.bringToFront();
+  await popup.bringToFront();
+  await popup.screenshot({ path: '/work/2-popup-feed.png' });
+
+  // 3. Group mở bằng tên rút gọn: extension học id số 777777777 và ghi vào CRM
+  await fb.goto('https://www.facebook.com/groups/caphe.khoinghiep/');
+  await wait(6000);
+  const c = await statusOf();
+  console.log('[slug] mode', c.mode, 'watched', c.watchedName);
+
+  // 4. Group không theo dõi: không gửi gì thêm
+  const before = (await scout()).stats.queued;
+  await fb.goto('https://www.facebook.com/groups/khong.theo.doi/');
+  await wait(3000);
+  console.log('[không theo dõi] queued trước', before, 'sau', (await scout()).stats.queued);
   await ctx.close();
 })().catch((e) => {
   console.error('LỖI', e);

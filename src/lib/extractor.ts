@@ -32,14 +32,22 @@ export function groupKeyFromPath(pathname: string): string | null {
   return /^[A-Za-z0-9._-]{1,100}$/.test(key) ? key : null;
 }
 
-// Id số của group lấy từ link trong trang (vd /groups/123456789/user/...), dùng khi URL trang là tên rút gọn.
-export function numericGroupIdsIn(root: ParentNode): string[] {
-  const ids = new Set<string>();
+// News Feed và trang tổng hợp "Nhóm": bài từ nhiều group lẫn với bài bạn bè/trang/quảng cáo, xét group từng bài.
+export function isFeedPath(pathname: string): boolean {
+  return pathname === '/' || pathname === '/home.php' || /^\/groups\/feed\/?$/.test(pathname);
+}
+
+// Id số của group đang mở khi URL là tên rút gọn: id xuất hiện nhiều nhất trong link thành viên/bài của trang
+// (/groups/<id>/user/..., /groups/<id>/posts/...). Cần ít nhất 3 lần để không lấy nhầm group của 1 bài chia sẻ.
+export function dominantGroupId(root: ParentNode): string | null {
+  const counts = new Map<string, number>();
   root.querySelectorAll<HTMLAnchorElement>('a[href*="/groups/"]').forEach((a) => {
-    const m = (a.getAttribute('href') ?? '').match(/\/groups\/(\d{5,25})\//);
-    if (m) ids.add(m[1]!);
+    const m = (a.getAttribute('href') ?? '').match(/\/groups\/(\d{5,25})\/(?:user|posts|permalink)\//);
+    if (m) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
   });
-  return [...ids];
+  let best: [string, number] | null = null;
+  for (const entry of counts) if (!best || entry[1] > best[1]) best = entry;
+  return best && best[1] >= 3 ? best[0] : null;
 }
 
 function isInside(el: Element, ancestors: Set<Element>): boolean {
@@ -156,6 +164,9 @@ export function normalizeProfileUrl(href: string): string | null {
   return null;
 }
 
+// Link về trang chủ group (/groups/<g>/), không phải link thành viên /groups/<g>/user/<id>/.
+const GROUP_HOME_LINK = /\/groups\/[^/?#]+\/?(?:[?#]|$)/;
+
 function authorOf(postRoot: Element): { name: string | null; url: string | null } {
   const selectors = [
     '[data-ad-rendering-role="profile_name"] a[href]',
@@ -165,7 +176,8 @@ function authorOf(postRoot: Element): { name: string | null; url: string | null 
   ];
   for (const sel of selectors) {
     for (const a of postRoot.querySelectorAll<HTMLAnchorElement>(sel)) {
-      if (inComment(a, postRoot)) continue;
+      // Trên News Feed, đầu bài group có link tên group đứng trước tên người đăng.
+      if (inComment(a, postRoot) || GROUP_HOME_LINK.test(a.getAttribute('href') ?? '')) continue;
       const name = a.textContent?.trim() || null;
       if (!name) continue;
       return { name: name.slice(0, 150), url: normalizeProfileUrl(a.getAttribute('href') ?? '') };
@@ -218,6 +230,20 @@ function contentOf(postRoot: Element): { text: string; truncated: boolean } | nu
   }
   text = text.replace(/\n{3,}/g, '\n\n').replace(/…\s*$/, '').trim();
   return text ? { text, truncated: seeMore.length > 0 } : null;
+}
+
+// Group của 1 bài (dùng trên News Feed): đoạn group trong link bài trước, rồi tới mọi link /groups/<g>/ ngoài
+// phần bình luận (tên group ở đầu bài, link thành viên). Bài bạn bè/trang/quảng cáo không có link nào → [].
+export function groupKeysOf(postRoot: Element): string[] {
+  const keys: string[] = [];
+  const own = postIdOf(postRoot)?.groupSegment;
+  if (own) keys.push(own);
+  postRoot.querySelectorAll<HTMLAnchorElement>('a[href*="/groups/"]').forEach((a) => {
+    if (inComment(a, postRoot)) return;
+    const m = (a.getAttribute('href') ?? '').match(/\/groups\/([A-Za-z0-9._-]{1,100})(?:[/?#]|$)/);
+    if (m && !keys.includes(m[1]!) && groupKeyFromPath(`/groups/${m[1]}`)) keys.push(m[1]!);
+  });
+  return keys;
 }
 
 export function extractPost(postRoot: Element, pageGroupKey: string, now: Date = new Date()): ExtractResult {

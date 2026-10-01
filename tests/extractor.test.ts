@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  dominantGroupId,
   extractPost,
   findPostRoots,
   groupKeyFromPath,
+  groupKeysOf,
+  isFeedPath,
   normalizeProfileUrl,
-  numericGroupIdsIn,
 } from '../src/lib/extractor';
 import { skeleton } from '../src/lib/diagnose';
 
@@ -101,9 +103,43 @@ describe('normalizeProfileUrl', () => {
   });
 });
 
-describe('numericGroupIdsIn', () => {
-  it('thu id số của group từ các link trong trang', () => {
-    expect(numericGroupIdsIn(document)).toEqual(expect.arrayContaining(['123456789', '999999999']));
+describe('dominantGroupId', () => {
+  it('id số xuất hiện nhiều nhất trong link thành viên/bài, không lấy group của bài chia sẻ', () => {
+    expect(dominantGroupId(document)).toBe('123456789');
+  });
+  it('quá ít link (< 3) thì không đoán', () => {
+    document.body.innerHTML = '<a href="/groups/123456789/user/1000000001/">a</a><a href="/groups/123456789/posts/1234567/">b</a>';
+    expect(dominantGroupId(document)).toBeNull();
+  });
+});
+
+describe('News Feed', () => {
+  const feed = readFileSync('tests/fixtures/news-feed.html', 'utf8');
+  beforeEach(() => {
+    document.body.innerHTML = feed;
+  });
+
+  it('nhận đúng trang News Feed', () => {
+    expect(isFeedPath('/')).toBe(true);
+    expect(isFeedPath('/groups/feed/')).toBe(true);
+    expect(isFeedPath('/groups/123456789/')).toBe(false);
+    expect(isFeedPath('/ban.be.thu')).toBe(false);
+  });
+
+  it('group của từng bài: link bài trước, bài bạn bè/quảng cáo không có group', () => {
+    const keys = findPostRoots(document).map((r) => groupKeysOf(r));
+    expect(keys).toEqual([['123456789'], ['caphe.khoinghiep'], [], [], ['555555555'], ['123456789']]);
+  });
+
+  it('tác giả là người đăng, không phải link tên group đứng trước', () => {
+    const r = extractPost(findPostRoots(document)[0]!, '123456789', NOW);
+    expect(r.ok && r.post).toMatchObject({
+      fb_post_id: '135791113',
+      author_name: 'Người Feed Một',
+      author_url: 'https://www.facebook.com/groups/123456789/user/100000000000021/',
+    });
+    const slug = extractPost(findPostRoots(document)[1]!, 'caphe.khoinghiep', NOW);
+    expect(slug.ok && slug.post.author_name).toBe('Người Feed Hai');
   });
 });
 

@@ -174,11 +174,21 @@ async function handle(msg: BgMessage): Promise<Reply> {
       };
       return { ok: true, data: status };
     }
-    case 'group:check': {
-      if (!(await currentEmail())) return { ok: true, data: { loggedIn: false, group: null } };
-      const groups = await watchedGroups();
-      const match = groups.find((g) => g.enabled && msg.keys.some((k) => k === g.fb_group_id || k === g.slug)) ?? null;
-      return { ok: true, data: { loggedIn: true, group: match } };
+    case 'groups:list': {
+      if (!(await currentEmail())) return { ok: true, data: { loggedIn: false, groups: [] } };
+      const groups = (await watchedGroups()).filter((g) => g.enabled);
+      return { ok: true, data: { loggedIn: true, groups } };
+    }
+    case 'group:learn': {
+      // Group thêm bằng tên rút gọn: điền id số học được khi mở trang group, để News Feed (thường dùng id số)
+      // khớp được. Chỉ điền ô đang trống; trùng id với group khác (unique) thì bỏ qua.
+      const { error } = await supabase
+        .from('fb_watched_groups')
+        .update({ fb_group_id: msg.fb_group_id })
+        .eq('id', msg.id)
+        .is('fb_group_id', null);
+      if (!error) groupsCache = null;
+      return { ok: true, data: !error };
     }
     case 'posts:add':
       return { ok: true, data: await addPosts(msg.group, msg.posts) };
