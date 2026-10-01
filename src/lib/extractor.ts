@@ -135,6 +135,8 @@ function postedAtOf(postRoot: Element, postId: string, now: Date): Date | null {
 const RESERVED_PROFILE_PATHS = new Set(['groups', 'watch', 'events', 'marketplace', 'gaming', 'pages', 'photo', 'photo.php', 'stories', 'hashtag', 'reel', 'share']);
 
 // Link người đăng → link hồ sơ gọn, không kèm tham số theo dõi của Facebook.
+// Link thành viên trong group (/groups/<g>/user/<id>/) giữ nguyên dạng đó: id ở đây không mở được bằng
+// profile.php?id= (đã gặp: mọi hồ sơ đổi sang profile.php đều "không hiển thị").
 export function normalizeProfileUrl(href: string): string | null {
   let url: URL;
   try {
@@ -143,8 +145,8 @@ export function normalizeProfileUrl(href: string): string | null {
     return null;
   }
   if (!/(^|\.)facebook\.com$/.test(url.hostname)) return null;
-  const groupUser = url.pathname.match(/^\/groups\/[^/]+\/user\/(\d{5,25})/);
-  if (groupUser) return `https://www.facebook.com/profile.php?id=${groupUser[1]}`;
+  const groupUser = url.pathname.match(/^\/groups\/([A-Za-z0-9._-]+)\/user\/(\d{5,25})/);
+  if (groupUser) return `https://www.facebook.com/groups/${groupUser[1]}/user/${groupUser[2]}/`;
   if (url.pathname === '/profile.php') {
     const id = url.searchParams.get('id');
     return id && /^\d{5,25}$/.test(id) ? `https://www.facebook.com/profile.php?id=${id}` : null;

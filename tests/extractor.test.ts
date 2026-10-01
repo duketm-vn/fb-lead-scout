@@ -44,7 +44,7 @@ describe('extractPost', () => {
         post_url: 'https://www.facebook.com/groups/123456789/posts/987654321/',
         posted_at: new Date(2026, 9, 1, 10, 0).toISOString(), // "2 giờ"
         author_name: 'Người Thử Một',
-        author_url: 'https://www.facebook.com/profile.php?id=100000000000001',
+        author_url: 'https://www.facebook.com/groups/123456789/user/100000000000001/',
         content: expect.stringContaining('Quán 30 bàn'),
         truncated: false,
       },
@@ -91,7 +91,10 @@ describe('extractPost', () => {
 
 describe('normalizeProfileUrl', () => {
   it('bỏ tham số theo dõi, chặn link không phải hồ sơ', () => {
-    expect(normalizeProfileUrl('/groups/1/user/100000000000007/?x=1')).toBe('https://www.facebook.com/profile.php?id=100000000000007');
+    expect(normalizeProfileUrl('/groups/123456789/user/2067980740767368/?__cft__[0]=x')).toBe(
+      'https://www.facebook.com/groups/123456789/user/2067980740767368/',
+    );
+    expect(normalizeProfileUrl('/profile.php?id=100000000000007&ref=x')).toBe('https://www.facebook.com/profile.php?id=100000000000007');
     expect(normalizeProfileUrl('https://www.facebook.com/some.user?__tn__=R')).toBe('https://www.facebook.com/some.user');
     expect(normalizeProfileUrl('/groups/123456789/')).toBeNull();
     expect(normalizeProfileUrl('https://evil.example.com/x')).toBeNull();
