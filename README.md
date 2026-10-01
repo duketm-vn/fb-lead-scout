@@ -26,7 +26,10 @@ tải lại các tab Facebook đang mở.
 
 ## Dùng hằng ngày
 
-1. Ở **CRM → Cơ hội FB → Group theo dõi**, thêm group bằng cách dán link group (chỉ cần làm 1 lần mỗi group).
+1. Mặc định extension **tự theo dõi mọi group gặp được**: lướt trang **Nhóm** (`facebook.com/groups/feed/`) hoặc News
+   Feed, gặp bài từ group chưa có trong CRM thì tự thêm group rồi đọc. Group toàn bài không liên quan thì vào
+   **CRM → Cơ hội FB → Group theo dõi** bỏ tick "Theo dõi" (không bị tự thêm lại). Tắt chế độ này ở popup nếu chỉ
+   muốn đọc các group tự thêm tay (dán link group ở cùng màn đó).
 2. Lướt **News Feed** hoặc mở trang group như bình thường. Trên News Feed, extension chỉ đọc bài từ group đang theo
    dõi (bài bạn bè, trang, quảng cáo, group khác bị bỏ qua). Popup hiện số bài đọc được.
    Group thêm bằng link tên rút gọn: mở trang group đó 1 lần để extension ghi nhận id số (News Feed hay dùng id số).
@@ -48,4 +51,6 @@ Popup báo group **chưa có trong danh sách theo dõi** nghĩa là extension k
 - Facebook đôi khi ẩn link bài cho tới khi rê chuột vào giờ đăng; bài đó được đọc khi link hiện ra.
 - Facebook đổi giao diện thì phần đọc bài có thể hỏng. Popup sẽ báo "Bài đọc được: 0" dù đang có bài. Khi đó bấm
   **Sao chép chẩn đoán** (chỉ chứa cấu trúc trang, không chứa nội dung hay tên) và gửi để sửa `src/lib/extractor.ts`.
-- Mỗi bài gửi đi tốn phí Claude API (khoảng 2 USD/tháng nếu đọc khoảng 100 bài/ngày).
+- Mỗi bài gửi đi tốn phí Claude API (khoảng 2 USD/tháng nếu đọc khoảng 100 bài/ngày). Tự theo dõi mọi group làm
+  số bài tăng theo mức bạn lướt; xem Usage ở console.anthropic.com và tắt bớt group ồn ở CRM.
+- Extension không tự cuộn: lướt trang Nhóm càng xa thì đọc được càng nhiều.

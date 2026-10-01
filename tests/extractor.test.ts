@@ -5,7 +5,9 @@ import {
   extractPost,
   findPostRoots,
   groupKeyFromPath,
+  groupInfoOf,
   groupKeysOf,
+  groupNameFromTitle,
   isFeedPath,
   normalizeProfileUrl,
 } from '../src/lib/extractor';
@@ -129,6 +131,20 @@ describe('News Feed', () => {
   it('group của từng bài: link bài trước, bài bạn bè/quảng cáo không có group', () => {
     const keys = findPostRoots(document).map((r) => groupKeysOf(r));
     expect(keys).toEqual([['123456789'], ['caphe.khoinghiep'], [], [], ['555555555'], ['123456789']]);
+  });
+
+  it('tên + link group để tự theo dõi: lấy chữ ở link trang chủ group, bài bạn bè thì không có', () => {
+    const info = findPostRoots(document).map((r) => groupInfoOf(r));
+    expect(info[1]).toEqual({ key: 'caphe.khoinghiep', name: 'Cà phê khởi nghiệp' });
+    expect(info[2]).toBeNull();
+    expect(info[3]).toBeNull();
+    expect(info[4]).toEqual({ key: '555555555', name: 'Nhóm Không Theo Dõi' });
+  });
+
+  it('tên group từ tiêu đề tab', () => {
+    expect(groupNameFromTitle('(3) Cà phê khởi nghiệp | Facebook')).toBe('Cà phê khởi nghiệp');
+    expect(groupNameFromTitle('Hội chủ trọ Hà Nội | Facebook')).toBe('Hội chủ trọ Hà Nội');
+    expect(groupNameFromTitle('Facebook')).toBeNull();
   });
 
   it('tác giả là người đăng, không phải link tên group đứng trước', () => {

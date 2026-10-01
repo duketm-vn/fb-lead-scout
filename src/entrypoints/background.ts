@@ -56,6 +56,12 @@ function withState<T>(fn: (s: State) => T | Promise<T>): Promise<T> {
   return run;
 }
 
+// Tự theo dõi mọi group gặp được (mặc định bật). Lưu riêng ở máy này, không đồng bộ lên CRM.
+async function autoAddEnabled(): Promise<boolean> {
+  const v = (await browser.storage.local.get('scoutSettings')).scoutSettings as { autoAdd?: boolean } | undefined;
+  return v?.autoAdd ?? true;
+}
+
 let groupsCache: { at: number; groups: WatchedGroup[] } | null = null;
 
 async function watchedGroups(force = false): Promise<WatchedGroup[]> {
@@ -167,6 +173,7 @@ async function handle(msg: BgMessage): Promise<Reply> {
       const s = await loadState();
       const status: BackgroundStatus = {
         email: await currentEmail(),
+        autoAdd: await autoAddEnabled(),
         stats: s.stats,
         queueSize: s.queue.length,
         lastError: s.lastError,
@@ -175,9 +182,27 @@ async function handle(msg: BgMessage): Promise<Reply> {
       return { ok: true, data: status };
     }
     case 'groups:list': {
-      if (!(await currentEmail())) return { ok: true, data: { loggedIn: false, groups: [] } };
-      const groups = (await watchedGroups()).filter((g) => g.enabled);
-      return { ok: true, data: { loggedIn: true, groups } };
+      // Trả cả group đã tắt: content script cần biết group đã có (người dùng tắt) để không tự thêm lại.
+      if (!(await currentEmail())) return { ok: true, data: { loggedIn: false, groups: [], autoAdd: false } };
+      return { ok: true, data: { loggedIn: true, groups: await watchedGroups(), autoAdd: await autoAddEnabled() } };
+    }
+    case 'group:add': {
+      if (!(await autoAddEnabled())) return { ok: false, error: 'Đang tắt tự theo dõi group.' };
+      const numeric = /^\d{5,25}$/.test(msg.key);
+      const { error } = await supabase.from('fb_watched_groups').insert({
+        fb_group_id: numeric ? msg.key : null,
+        slug: numeric ? null : msg.key,
+        name: msg.name.trim().slice(0, 150) || msg.key,
+        notes: 'Extension tự thêm khi gặp bài của group',
+      });
+      // 23505: group đã có (máy khác/tab khác vừa thêm) → coi như xong.
+      if (error && error.code !== '23505') return { ok: false, error: error.message };
+      groupsCache = null;
+      return { ok: true, data: null };
+    }
+    case 'settings:set': {
+      await browser.storage.local.set({ scoutSettings: { autoAdd: msg.autoAdd } });
+      return { ok: true, data: null };
     }
     case 'group:learn': {
       // Group thêm bằng tên rút gọn: điền id số học được khi mở trang group, để News Feed (thường dùng id số)

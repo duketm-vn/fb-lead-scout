@@ -64,11 +64,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const g = await statusOf();
   console.log('[group] sent', s.stats.sent, 'found', g.found, 'tooOld', g.tooOld, 'noTime', g.noTime, 'noId', g.noId, 'lastError', s.lastError);
 
-  // 2. News Feed: chỉ 2 bài của group theo dõi (id số + tên rút gọn), bỏ bạn bè/quảng cáo/group khác/bài cũ
+  // 2. News Feed (tự theo dõi đang bật, mặc định): 2 bài của group theo dõi + group lạ 555555555 được tự thêm
+  //    rồi đọc; bạn bè/quảng cáo/bài cũ bị bỏ.
   await fb.goto('https://www.facebook.com/');
-  s = await until((x) => x.stats.sent >= 6 && x.queue.length === 0, 30000);
+  s = await until((x) => x.stats.sent >= 7 && x.queue.length === 0, 40000);
   const f = await statusOf();
-  console.log('[feed] sent', s.stats.sent, 'mode', f.mode, 'found', f.found, 'feedGroups', f.feedGroups, 'tooOld', f.tooOld, 'lastError', s.lastError);
+  console.log('[feed] sent', s.stats.sent, 'mode', f.mode, 'found', f.found, 'feedGroups', f.feedGroups, 'autoAdded', f.autoAdded, 'tooOld', f.tooOld, 'lastError', s.lastError);
   await popup.reload();
   await popup.waitForSelector('text=Hôm nay');
   await fb.bringToFront();
@@ -81,7 +82,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const c = await statusOf();
   console.log('[slug] mode', c.mode, 'watched', c.watchedName);
 
-  // 4. Group không theo dõi: không gửi gì thêm
+  // 4. Tắt tự theo dõi ở popup → mở group lạ: không thêm group, không gửi gì thêm
+  await popup.reload();
+  await popup.waitForSelector('text=Tự theo dõi mọi group gặp được');
+  await popup.click('text=Tự theo dõi mọi group gặp được');
+  await wait(500);
+  console.log('[tắt tự theo dõi] autoAdd =', await sw.evaluate(() => chrome.storage.local.get('scoutSettings').then((r) => r.scoutSettings?.autoAdd)));
   const before = (await scout()).stats.queued;
   await fb.goto('https://www.facebook.com/groups/khong.theo.doi/');
   await wait(3000);

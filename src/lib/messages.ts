@@ -22,6 +22,7 @@ export interface DayStats {
 
 export interface BackgroundStatus {
   email: string | null;
+  autoAdd: boolean;
   stats: DayStats;
   queueSize: number;
   lastError: string | null;
@@ -33,6 +34,7 @@ export interface PageStatus {
   groupKey: string | null;
   watchedName: string | null; // group đang mở (mode group)
   watchedCount: number; // số group đang theo dõi
+  autoAdded: number; // số group tự thêm từ lúc mở trang
   feedGroups: number; // mode feed: số group theo dõi đã gặp bài trên trang
   loggedIn: boolean;
   found: number;
@@ -50,6 +52,8 @@ export type BgMessage =
   | { type: 'status' }
   | { type: 'groups:list' }
   | { type: 'group:learn'; id: string; fb_group_id: string }
+  | { type: 'group:add'; key: string; name: string }
+  | { type: 'settings:set'; autoAdd: boolean }
   | { type: 'posts:add'; group: GroupRef; posts: ExtractedPost[] }
   | { type: 'flush' };
 

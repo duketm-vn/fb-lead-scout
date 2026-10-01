@@ -118,7 +118,8 @@ function PageCard({ status }: { status: PageStatus | null }) {
       <div className="rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
         <p className="font-medium text-emerald-700">● News Feed: chỉ đọc bài từ {status.watchedCount} group theo dõi</p>
         <p className="mt-0.5 text-xs text-slate-500">
-          Đã gặp bài từ {status.feedGroups} group. Bài bạn bè, trang, quảng cáo, group khác bị bỏ qua.
+          Đã gặp bài từ {status.feedGroups} group
+          {status.autoAdded > 0 && `, tự thêm ${status.autoAdded} group mới`}. Bài bạn bè, trang, quảng cáo bị bỏ qua.
         </p>
         <Counts status={status} />
       </div>
@@ -127,8 +128,8 @@ function PageCard({ status }: { status: PageStatus | null }) {
   if (!status.watchedName) {
     return (
       <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
-        Group <b>{status.groupKey}</b> chưa có trong danh sách theo dõi, extension không đọc gì ở đây. Thêm ở CRM
-        → Cơ hội FB → Group theo dõi (dán link group), rồi tải lại trang.
+        Group <b>{status.groupKey}</b> không được theo dõi (chưa có, hoặc đã tắt ở CRM), extension không đọc gì ở đây.
+        Bật lại ở CRM → Cơ hội FB → Group theo dõi, hoặc bật "Tự theo dõi" bên dưới, rồi tải lại trang.
       </div>
     );
   }
@@ -206,6 +207,23 @@ export default function App() {
       ) : (
         <>
           <PageCard status={pageStatus} />
+
+          <label className="flex items-start gap-2 rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={bgStatus.autoAdd}
+              disabled={busy}
+              onChange={(e) => act(() => bg({ type: 'settings:set', autoAdd: e.target.checked }))}
+            />
+            <span>
+              <span className="font-medium text-slate-900">Tự theo dõi mọi group gặp được</span>
+              <span className="block text-xs text-slate-500">
+                Gặp bài từ group chưa có trong CRM thì tự thêm rồi đọc. Group đã tắt ở CRM không bị thêm lại. Đọc
+                nhiều hơn thì phí chấm điểm cũng tăng. Tải lại tab Facebook sau khi đổi.
+              </span>
+            </span>
+          </label>
 
           <div className="rounded-lg bg-white p-3 text-sm ring-1 ring-slate-200">
             <p className="mb-1 font-medium text-slate-900">Hôm nay</p>

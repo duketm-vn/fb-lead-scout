@@ -29,7 +29,7 @@ quyền thật ở RLS + function tự `auth.getUser()`), `WXT_CRM_URL` (nút m�
 
 ```
 facebook.content.ts (mọi trang facebook.com, vì Facebook là SPA)
-  └─ lấy danh sách group đang theo dõi từ background (groups:list, cache 5 phút ở cả 2 phía)
+  └─ lấy danh sách group (cả đã tắt) + công tắc tự theo dõi từ background (groups:list, cache 5 phút ở cả 2 phía)
   └─ /groups/<key>: đọc mọi bài nếu group khớp; / hoặc /groups/feed/ (News Feed): groupKeysOf từng bài, chỉ bài
      khớp group theo dõi; còn lại bỏ qua
   └─ MutationObserver (childList + href) → extractor → gửi bài mới (theo từng group) cho background sau 2 giây
@@ -49,6 +49,11 @@ Quyết định cố ý:
   Feed khớp theo **link** (id số/tên rút gọn trong link bài, link tên group), không theo tên nhóm (tên đặt ở CRM có
   thể khác tên thật, tên thật trùng/đổi được). Đầu bài News Feed có link tên group trước tên người đăng: authorOf
   bỏ qua link trang chủ group.
+- **Tự theo dõi mọi group gặp được** (công tắc ở popup, `chrome.storage.local` `scoutSettings.autoAdd`, mặc định
+  bật vì người dùng muốn "theo dõi càng nhiều càng tốt"): bài từ group chưa có trong `fb_watched_groups` →
+  `groupInfoOf` (tên từ link trang chủ group) → `group:add` insert (notes "Extension tự thêm…"); mở trang group lạ
+  thì tên lấy từ tiêu đề tab. `groups:list` trả **cả group đã tắt** để group người dùng tắt không bị thêm lại.
+  Mỗi group chỉ thử thêm 1 lần mỗi lần tải trang.
 - **Tự học id số**: News Feed thường dùng id số, người dùng hay dán link tên rút gọn. Mở trang group thì id số xuất
   hiện nhiều nhất (≥ 3 lần) trong link thành viên/bài được ghi vào `fb_watched_groups.fb_group_id` (RLS admin).
 - **Chỉ background giữ Supabase client**: popup/content script nhắn qua `runtime.sendMessage`, nên chỉ 1 nơi

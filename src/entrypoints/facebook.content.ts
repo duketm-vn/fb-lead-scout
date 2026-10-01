@@ -4,8 +4,10 @@ import {
   dominantGroupId,
   extractPost,
   findPostRoots,
+  groupInfoOf,
   groupKeyFromPath,
   groupKeysOf,
+  groupNameFromTitle,
   isFeedPath,
   type ExtractedPost,
 } from '../lib/extractor';
@@ -20,6 +22,8 @@ import type { BgMessage, GroupRef, PageMessage, PageStatus, Reply, WatchedGroup 
 //   quảng cáo, group khác bị bỏ qua, không gửi gì.
 // Bài cũ hơn MAX_POST_AGE_DAYS (đọc từ chữ ở link giờ đăng) không gửi; không đọc được giờ thì vẫn gửi.
 // Mở group bằng tên rút gọn mà CRM chưa có id số: ghi id số học được vào CRM, vì News Feed hay dùng id số.
+// Tự theo dõi (công tắc ở popup, mặc định bật): gặp bài của group chưa có trong CRM thì tự thêm group rồi đọc.
+// Group người dùng đã TẮT ở CRM vẫn nằm trong danh sách nên không bị thêm lại.
 
 const GROUPS_TTL_MS = 5 * 60 * 1000;
 
@@ -29,6 +33,7 @@ function send<T>(msg: BgMessage): Promise<Reply<T>> {
 
 const refOf = (g: WatchedGroup): GroupRef => ({ fb_group_id: g.fb_group_id, slug: g.slug });
 
+// Tìm cả group đã tắt (để biết group đã có); người gọi tự kiểm tra enabled.
 function matchGroup(keys: string[], groups: WatchedGroup[]): WatchedGroup | null {
   for (const k of keys) {
     const g = groups.find((x) => k === x.fb_group_id || k === x.slug);
@@ -47,6 +52,9 @@ export default defineContentScript({
     let groups: WatchedGroup[] = [];
     let groupsAt = 0;
     let loggedIn = false;
+    let autoAdd = false;
+    const triedAdd = new Set<string>();
+    let autoAdded = 0;
     let pageGroup: WatchedGroup | null = null; // mode group: group đang mở (đang theo dõi)
     const learned = new Set<string>();
     const found = new Set<string>();
@@ -60,10 +68,13 @@ export default defineContentScript({
 
     async function loadGroups(force = false) {
       if (!force && Date.now() - groupsAt < GROUPS_TTL_MS) return;
-      const reply = await send<{ loggedIn: boolean; groups: WatchedGroup[] }>({ type: 'groups:list' }).catch(() => null);
+      const reply = await send<{ loggedIn: boolean; groups: WatchedGroup[]; autoAdd: boolean }>({ type: 'groups:list' }).catch(
+        () => null,
+      );
       if (!reply?.ok) return;
       loggedIn = reply.data.loggedIn;
       groups = reply.data.groups;
+      autoAdd = reply.data.autoAdd;
       groupsAt = Date.now();
     }
 
@@ -81,6 +92,11 @@ export default defineContentScript({
       if (mode === 'group' && key) {
         const dominant = /^\d+$/.test(key) ? null : dominantGroupId(document);
         pageGroup = matchGroup([key, ...(dominant ? [dominant] : [])], groups);
+        if (!pageGroup && autoAdd && loggedIn && !triedAdd.has(key)) {
+          await addGroups([{ key, name: groupNameFromTitle(document.title) ?? key }]);
+          pageGroup = matchGroup([key, ...(dominant ? [dominant] : [])], groups);
+        }
+        if (pageGroup && !pageGroup.enabled) pageGroup = null; // người dùng đã tắt group này ở CRM
         if (pageGroup && dominant && !pageGroup.fb_group_id && !learned.has(pageGroup.id)) {
           learned.add(pageGroup.id);
           const r = await send<boolean>({ type: 'group:learn', id: pageGroup.id, fb_group_id: dominant }).catch(() => null);
@@ -90,15 +106,35 @@ export default defineContentScript({
       scan();
     }
 
+    // Thêm các group chưa có vào CRM (mỗi group thử 1 lần mỗi lần tải trang), rồi tải lại danh sách.
+    let adding = false;
+    async function addGroups(candidates: { key: string; name: string }[]) {
+      const fresh = candidates.filter((c) => !triedAdd.has(c.key));
+      if (!fresh.length) return;
+      fresh.forEach((c) => triedAdd.add(c.key));
+      for (const c of fresh) {
+        const r = await send({ type: 'group:add', key: c.key, name: c.name }).catch(() => null);
+        if (r?.ok) autoAdded += 1;
+      }
+      await loadGroups(true);
+    }
+
     function scan() {
       if (!mode || !loggedIn) return;
       if (mode === 'group' && !pageGroup) return;
       void loadGroups(); // lướt News Feed lâu không đổi trang: danh sách group vẫn cập nhật (5 phút/lần)
       const misses = { noId: 0, noContent: 0 };
       const now = new Date();
+      const toAdd = new Map<string, { key: string; name: string }>();
       for (const root of findPostRoots(document)) {
         const group = mode === 'group' ? pageGroup : matchGroup(groupKeysOf(root), groups);
-        if (!group) continue; // News Feed: bài không thuộc group theo dõi
+        if (!group) {
+          // News Feed: bài của group chưa có trong CRM → tự thêm (nếu bật), lần quét sau sẽ đọc.
+          const info = mode === 'feed' && autoAdd ? groupInfoOf(root) : null;
+          if (info && !triedAdd.has(info.key)) toAdd.set(info.key, info);
+          continue;
+        }
+        if (!group.enabled) continue; // người dùng đã tắt group này ở CRM
         const r = extractPost(root, pageKey ?? group.fb_group_id ?? group.slug ?? '', now);
         if (!r.ok) {
           misses[r.reason === 'no_id' ? 'noId' : 'noContent'] += 1;
@@ -122,6 +158,13 @@ export default defineContentScript({
       noId = misses.noId;
       noContent = misses.noContent;
       if (pending.size) flushSoon();
+      if (toAdd.size && !adding) {
+        adding = true;
+        void addGroups([...toAdd.values()]).finally(() => {
+          adding = false;
+          scan();
+        });
+      }
     }
 
     let sendTimer: number | null = null;
@@ -164,7 +207,8 @@ export default defineContentScript({
           mode,
           groupKey: pageKey,
           watchedName: pageGroup?.name ?? null,
-          watchedCount: groups.length,
+          watchedCount: groups.filter((g) => g.enabled).length,
+          autoAdded,
           feedGroups: feedGroups.size,
           loggedIn,
           found: found.size,

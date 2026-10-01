@@ -246,6 +246,30 @@ export function groupKeysOf(postRoot: Element): string[] {
   return keys;
 }
 
+// Tên + link của group mà bài thuộc về (để tự thêm group vào danh sách theo dõi): link trang chủ group có chữ,
+// ưu tiên link cùng group với link bài. null với bài không thuộc group nào.
+export function groupInfoOf(postRoot: Element): { key: string; name: string } | null {
+  const keys = groupKeysOf(postRoot);
+  if (!keys.length) return null;
+  let named: { key: string; name: string } | null = null;
+  for (const a of postRoot.querySelectorAll<HTMLAnchorElement>('a[href*="/groups/"]')) {
+    if (inComment(a, postRoot)) continue;
+    const href = a.getAttribute('href') ?? '';
+    const m = href.match(/\/groups\/([A-Za-z0-9._-]{1,100})(?:[/?#]|$)/);
+    const name = a.textContent?.trim();
+    if (!m || !name || !GROUP_HOME_LINK.test(href)) continue;
+    if (m[1] === keys[0]) return { key: keys[0]!, name: name.slice(0, 150) };
+    named ??= { key: m[1]!, name: name.slice(0, 150) };
+  }
+  return named && keys.includes(named.key) ? named : { key: keys[0]!, name: keys[0]! };
+}
+
+// Tên group trên trang group: lấy từ tiêu đề tab ("(3) Tên group | Facebook").
+export function groupNameFromTitle(title: string): string | null {
+  const name = title.replace(/^\(\d+\+?\)\s*/, '').replace(/\s*\|\s*Facebook\s*$/i, '').trim();
+  return name && name.toLowerCase() !== 'facebook' ? name.slice(0, 150) : null;
+}
+
 export function extractPost(postRoot: Element, pageGroupKey: string, now: Date = new Date()): ExtractResult {
   const idInfo = postIdOf(postRoot);
   if (!idInfo) return { ok: false, reason: 'no_id' };
